@@ -4,17 +4,21 @@ const User = require('./models/user.js')
 const { validateSignupData } = require("./utils/validation.js")
 const bcrypt = require('bcrypt');
 const validator = require('validator')
+const cookieParser = require('cookie-parser')
+var jwt = require('jsonwebtoken');
+const {userAuth}=require('./middleware/auth.js')
 
 
 
 
 const app = express()
 app.use(express.json())
+app.use(cookieParser())
 
 app.post("/signup", async (req, res) => {
     try {
-        const { firstName, lastName, emailId, password,age, gender,photoUrl, about, skills } = req.body 
-          
+        const { firstName, lastName, emailId, password, age, gender, photoUrl, about, skills } = req.body
+
         //validation of data
         validateSignupData(req)
 
@@ -51,25 +55,44 @@ app.post("/login", async (req, res) => {
         }
 
         const user = await User.findOne({ emailId })
-        if(!user){
+        if (!user) {
             return res.status(400).send("invalid credentials")
         }
-        const isPasswordValid = await bcrypt.compare(password,user.password)
+        const isPasswordValid = await bcrypt.compare(password, user.password)
 
-        if(isPasswordValid){
-            res.send("login successful")
-        }else{
-            res.status(400).send("invalid credentials")
+        if (isPasswordValid) {
+            try {
+                // Create a JWT Token
+                const token = await jwt.sign({ _id: user._id }, "RUP@3412#$@"); 
+                console.log("Generated Token:", token);
+                
+                // Set the token in the cookie
+                res.cookie("token", token);
+                
+              
+                res.status(200).send("Login successful");
+            } catch (error) {
+                console.error("Error generating token:", error);
+                res.status(500).send("Server error");
+            }
+        } else { 
+            res.status(400).send("Invalid credentials");
         }
-
-
+        
 
     } catch (error) {
         res.status(400).send("ERROR :" + error.message)
     }
 })
 
-
+app.get("/profile",userAuth, async(req, res) => {
+ try {
+    const user = req.user
+    res.send(user)
+ } catch (error) {
+    res.status(400).send("ERROR :" + error.message)
+ }
+})
 
 
 //GET user by email
